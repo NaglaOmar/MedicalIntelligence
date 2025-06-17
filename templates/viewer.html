@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+
+{% block title %}Medical Image Viewer - {{ study.patient_id }}{% endblock %}
+
+{% block extra_head %}
+<!-- Simple Medical Viewer - no external dependencies needed -->
+
+<!-- Medical viewer specific CSS -->
+<style>
+    .viewer-container {
+        height: calc(100vh - 200px);
+        min-height: 400px;
+        background: #000;
+        border: 2px solid var(--bs-border-color);
+        border-radius: 0.375rem;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .viewer-element {
+        width: 100%;
+        height: 100%;
+        background: #000;
+    }
+    
+    .viewer-overlay {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: #00ff00;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        z-index: 10;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 8px;
+        border-radius: 4px;
+        pointer-events: none;
+    }
+    
+    .viewer-tools {
+        background: var(--bs-dark);
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .tool-button {
+        min-width: 100px;
+    }
+    
+    .analysis-panel {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .segmentation-overlay {
+        opacity: 0.3;
+        mix-blend-mode: screen;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid my-3">
+    <!-- Header -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-1">
+                            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item active">Viewer</li>
+                        </ol>
+                    </nav>
+                    <h2 class="mb-0">
+                        <i data-feather="eye" class="me-2"></i>
+                        Medical Image Viewer
+                    </h2>
+                    <p class="text-muted mb-0">Patient: {{ study.patient_id }} | Study: {{ study.study_id[:16] }}...</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary me-2" onclick="downloadStudy()">
+                        <i data-feather="download" class="me-1"></i>
+                        Download
+                    </button>
+                    <button class="btn btn-primary" onclick="analyzeWithAI()">
+                        <i data-feather="activity" class="me-1"></i>
+                        AI Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Viewer Panel -->
+        <div class="col-lg-8">
+            <!-- Viewer Tools -->
+            <div class="viewer-tools">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-auto">
+                        <label class="form-label mb-0 me-2">Tools:</label>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary tool-button" id="pan-tool" onclick="setTool('pan')">
+                                <i data-feather="move" class="me-1"></i>Pan
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary tool-button active" id="zoom-tool" onclick="setTool('zoom')">
+                                <i data-feather="zoom-in" class="me-1"></i>Zoom
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary tool-button" id="windowing-tool" onclick="setTool('windowing')">
+                                <i data-feather="sliders" class="me-1"></i>Window
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-auto">
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-info" onclick="resetView()">
+                                <i data-feather="refresh-cw" class="me-1"></i>Reset
+                            </button>
+                            <button type="button" class="btn btn-outline-warning" onclick="toggleInvert()">
+                                <i data-feather="sun" class="me-1"></i>Invert
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-auto ms-auto">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="segmentationToggle" onchange="toggleSegmentation()">
+                            <label class="form-check-label" for="segmentationToggle">
+                                Show Segmentation
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Viewer Container -->
+            <div class="viewer-container" id="viewerContainer">
+                <div class="viewer-element" id="viewerElement" oncontextmenu="return false" onselectstart="return false" onmousedown="return false"></div>
+                <div class="viewer-overlay" id="viewerOverlay">
+                    <div>Patient: {{ study.patient_id }}</div>
+                    <div>Study: {{ study.modality }}</div>
+                    <div>Status: {{ study.processing_status.title() }}</div>
+                    <div id="imageInfo"></div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div class="text-center py-5" id="loadingState">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading medical image...</span>
+                </div>
+                <h5 class="text-muted">Loading Medical Image</h5>
+                <p class="text-muted">Please wait while we prepare your image for viewing...</p>
+            </div>
+
+            <!-- Error State -->
+            <div class="alert alert-danger d-none" id="errorState">
+                <div class="d-flex align-items-center">
+                    <i data-feather="alert-triangle" class="me-2"></i>
+                    <div>
+                        <h6 class="alert-heading mb-1">Unable to Load Image</h6>
+                        <p class="mb-0" id="errorMessage">An error occurred while loading the medical image.</p>
+                    </div>
+                </div>
+                <button class="btn btn-outline-danger btn-sm mt-2" onclick="retryImageLoad()">
+                    <i data-feather="refresh-cw" class="me-1"></i>
+                    Retry
+                </button>
+            </div>
+        </div>
+
+        <!-- Information Panel -->
+        <div class="col-lg-4">
+            <!-- Study Information -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="file-text" class="me-2"></i>
+                        Study Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row small">
+                        <dt class="col-5">Patient ID:</dt>
+                        <dd class="col-7">{{ study.patient_id }}</dd>
+                        
+                        <dt class="col-5">Study ID:</dt>
+                        <dd class="col-7"><code class="small">{{ study.study_id[:20] }}...</code></dd>
+                        
+                        <dt class="col-5">Modality:</dt>
+                        <dd class="col-7"><span class="badge bg-secondary">{{ study.modality }}</span></dd>
+                        
+                        <dt class="col-5">Date:</dt>
+                        <dd class="col-7">{{ study.study_date.strftime('%Y-%m-%d %H:%M') if study.study_date else 'Unknown' }}</dd>
+                        
+                        <dt class="col-5">Status:</dt>
+                        <dd class="col-7">
+                            <span class="badge 
+                                {% if study.processing_status == 'completed' %}bg-success
+                                {% elif study.processing_status == 'processing' %}bg-warning
+                                {% elif study.processing_status == 'failed' %}bg-danger
+                                {% else %}bg-secondary{% endif %}">
+                                {{ study.processing_status.title() }}
+                            </span>
+                        </dd>
+                        
+                        <dt class="col-5">File Size:</dt>
+                        <dd class="col-7">{{ (study.file_size / 1024 / 1024) | round(1) if study.file_size else 'Unknown' }} MB</dd>
+                    </dl>
+                    
+                    {% if study.description %}
+                    <div class="mt-3">
+                        <h6 class="small text-muted mb-1">Description:</h6>
+                        <p class="small mb-0">{{ study.description }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Analysis Results -->
+            {% if analyses %}
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="activity" class="me-2"></i>
+                        Analysis Results
+                    </h6>
+                    <span class="badge bg-info">{{ analyses|length }}</span>
+                </div>
+                <div class="card-body analysis-panel">
+                    {% for analysis in analyses %}
+                    <div class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-0">{{ analysis.analysis_type.title() }}</h6>
+                            <span class="badge 
+                                {% if analysis.status == 'completed' %}bg-success
+                                {% elif analysis.status == 'pending' %}bg-warning
+                                {% else %}bg-danger{% endif %}">
+                                {{ analysis.status.title() }}
+                            </span>
+                        </div>
+                        
+                        {% if analysis.confidence_score %}
+                        <div class="progress mb-2" style="height: 4px;">
+                            <div class="progress-bar bg-info" style="width: {{ (analysis.confidence_score * 100) | round }}%"></div>
+                        </div>
+                        <small class="text-muted">Confidence: {{ (analysis.confidence_score * 100) | round }}%</small>
+                        {% endif %}
+                        
+                        {% if analysis.result_data and analysis.result_data.segmented_organs %}
+                        <div class="mt-2">
+                            <small class="text-muted d-block mb-1">Segmented Organs:</small>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for organ in analysis.result_data.segmented_organs[:6] %}
+                                <span class="badge bg-secondary text-capitalize small">{{ organ.replace('_', ' ') }}</span>
+                                {% endfor %}
+                                {% if analysis.result_data.segmented_organs|length > 6 %}
+                                <span class="badge bg-light text-dark small">+{{ analysis.result_data.segmented_organs|length - 6 }} more</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if analysis.report_text %}
+                        <div class="mt-2">
+                            <small class="text-muted d-block mb-1">AI Report:</small>
+                            <div class="small text-white-50" style="max-height: 100px; overflow-y: auto;">
+                                {{ analysis.report_text[:200] }}{% if analysis.report_text|length > 200 %}...{% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-2 d-flex gap-1">
+                            {% if analysis.segmentation_path %}
+                            <button class="btn btn-outline-primary btn-sm" onclick="loadSegmentation({{ analysis.id }})">
+                                <i data-feather="layers" class="me-1"></i>
+                                View Overlay
+                            </button>
+                            {% endif %}
+                            <button class="btn btn-outline-info btn-sm" onclick="showAnalysisDetails({{ analysis.id }})">
+                                <i data-feather="info" class="me-1"></i>
+                                Details
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- AI Analysis Panel -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="activity" class="me-2"></i>
+                        AI Analysis
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if study.processing_status == 'uploaded' %}
+                    <div class="text-center py-3">
+                        <i data-feather="play-circle" class="text-primary mb-2" style="width: 32px; height: 32px;"></i>
+                        <h6 class="text-muted mb-2">Ready for Analysis</h6>
+                        <p class="small text-muted mb-3">Start AI-powered segmentation and analysis</p>
+                        <button class="btn btn-primary w-100" onclick="startProcessing()">
+                            <i data-feather="play" class="me-1"></i>
+                            Start Processing
+                        </button>
+                    </div>
+                    {% elif study.processing_status == 'processing' %}
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-warning mb-2" role="status">
+                            <span class="visually-hidden">Processing...</span>
+                        </div>
+                        <h6 class="text-warning mb-2">Processing in Progress</h6>
+                        <p class="small text-muted mb-0">AI analysis is running. This may take several minutes.</p>
+                    </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label for="aiQuery" class="form-label small">Ask AI about this image:</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control form-control-sm" id="aiQuery" 
+                                   placeholder="e.g., What organs are visible in this scan?">
+                            <button class="btn btn-primary btn-sm" onclick="queryAI()">
+                                <i data-feather="send" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="aiResponse" class="d-none">
+                        <div class="alert alert-info small">
+                            <div class="d-flex align-items-start">
+                                <i data-feather="activity" class="me-2 mt-1" style="width: 16px; height: 16px;"></i>
+                                <div id="aiResponseText"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Details Modal -->
+<div class="modal fade" id="analysisDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-feather="activity" class="me-2"></i>
+                    Analysis Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="analysisDetailsContent">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/simple-medical-viewer.js') }}"></script>
+
+<script>
+    // Initialize viewer when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        const studyId = {{ study.id }};
+        initializeViewer(studyId);
+    });
+
+    function startProcessing() {
+        if (!confirm('Start AI processing for this study? This may take several minutes.')) {
+            return;
+        }
+        
+        fetch(`/api/process/{{ study.id }}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                analysis_request: 'Perform comprehensive medical image segmentation'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                MedicalApp.showToast('Processing started successfully', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                MedicalApp.showToast('Processing failed: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            MedicalApp.showToast('Network error: ' + error.message, 'error');
+        });
+    }
+
+    function queryAI() {
+        const query = document.getElementById('aiQuery').value.trim();
+        if (!query) {
+            MedicalApp.showToast('Please enter a question', 'warning');
+            return;
+        }
+        
+        const responseDiv = document.getElementById('aiResponse');
+        const responseText = document.getElementById('aiResponseText');
+        
+        responseDiv.classList.remove('d-none');
+        responseText.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div>Analyzing...';
+        
+        fetch('/api/analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                study_id: {{ study.id }},
+                query: query
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                responseText.textContent = data.response;
+            } else {
+                responseText.innerHTML = `<span class="text-danger">Error: ${data.error}</span>`;
+            }
+        })
+        .catch(error => {
+            responseText.innerHTML = `<span class="text-danger">Network error: ${error.message}</span>`;
+        });
+    }
+
+    function showAnalysisDetails(analysisId) {
+        const modal = new bootstrap.Modal(document.getElementById('analysisDetailsModal'));
+        const content = document.getElementById('analysisDetailsContent');
+        
+        content.innerHTML = '<div class="text-center py-3"><div class="spinner-border"></div></div>';
+        modal.show();
+        
+        // Load analysis details
+        fetch(`/api/studies`)
+            .then(response => response.json())
+            .then(data => {
+                // Find the analysis (simplified - in real app would have dedicated endpoint)
+                content.innerHTML = `
+                    <div class="alert alert-info">
+                        <h6>Analysis ID: ${analysisId}</h6>
+                        <p>Detailed analysis information would be displayed here.</p>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                content.innerHTML = '<div class="alert alert-danger">Error loading details</div>';
+            });
+    }
+
+    function analyzeWithAI() {
+        const query = prompt('What would you like to know about this medical image?', 'Analyze this medical image and provide a summary of findings');
+        if (query) {
+            document.getElementById('aiQuery').value = query;
+            queryAI();
+        }
+    }
+
+    function downloadStudy() {
+        MedicalApp.showToast('Download functionality would be implemented here', 'info');
+    }
+
+    // Auto-refresh if processing
+    {% if study.processing_status == 'processing' %}
+    setTimeout(() => {
+        location.reload();
+    }, 30000); // Refresh every 30 seconds
+    {% endif %}
+</script>
+{% endblock %}

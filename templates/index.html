@@ -1,0 +1,517 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Medical Imaging Analysis System{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-6 mb-1">Medical Imaging Dashboard</h1>
+                    <p class="text-muted">AI-powered analysis for DICOM and NIFTI medical images</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('upload_page') }}" class="btn btn-primary">
+                        <i data-feather="upload" class="me-2"></i>
+                        Upload Images
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary bg-opacity-10 border-primary border-opacity-25">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <i data-feather="file-text" class="text-primary" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1" id="total-studies">{{ studies|length }}</h5>
+                            <p class="card-text text-muted mb-0">Total Studies</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-success bg-opacity-10 border-success border-opacity-25">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <i data-feather="check-circle" class="text-success" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1" id="completed-analyses">
+                                {{ studies|selectattr('processing_status', 'equalto', 'completed')|list|length }}
+                            </h5>
+                            <p class="card-text text-muted mb-0">Completed</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-warning bg-opacity-10 border-warning border-opacity-25">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <i data-feather="clock" class="text-warning" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1" id="processing-studies">
+                                {{ studies|selectattr('processing_status', 'equalto', 'processing')|list|length }}
+                            </h5>
+                            <p class="card-text text-muted mb-0">Processing</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-info bg-opacity-10 border-info border-opacity-25">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <i data-feather="activity" class="text-info" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1" id="ai-analyses">
+                                {% set total_analyses = 0 %}
+                                {% for study in studies %}
+                                    {% set total_analyses = total_analyses + study.analyses|length %}
+                                {% endfor %}
+                                {{ total_analyses }}
+                            </h5>
+                            <p class="card-text text-muted mb-0">AI Analyses</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="zap" class="me-2"></i>
+                        Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ url_for('upload_page') }}" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                                <i data-feather="upload" class="mb-2" style="width: 32px; height: 32px;"></i>
+                                <span>Upload DICOM/NIFTI</span>
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <button class="btn btn-outline-secondary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3" onclick="refreshDashboard()">
+                                <i data-feather="refresh-cw" class="mb-2" style="width: 32px; height: 32px;"></i>
+                                <span>Refresh Data</span>
+                            </button>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <button class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3" onclick="viewSystemStatus()">
+                                <i data-feather="monitor" class="mb-2" style="width: 32px; height: 32px;"></i>
+                                <span>System Status</span>
+                            </button>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <button class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3" onclick="cleanupFiles()">
+                                <i data-feather="trash-2" class="mb-2" style="width: 32px; height: 32px;"></i>
+                                <span>Cleanup Files</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Studies -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="folder" class="me-2"></i>
+                        Recent Studies
+                    </h5>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="loadAllStudies()">
+                        <i data-feather="list" class="me-1"></i>
+                        View All
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if studies %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Patient ID</th>
+                                        <th>Study ID</th>
+                                        <th>Modality</th>
+                                        <th>Date</th>
+                                        <th>Status</th>
+                                        <th>Size</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="studies-table-body">
+                                    {% for study in studies %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i data-feather="user" class="text-muted me-2" style="width: 16px; height: 16px;"></i>
+                                                <span class="fw-medium">{{ study.patient_id }}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <code class="text-muted">{{ study.study_id[:16] }}{% if study.study_id|length > 16 %}...{% endif %}</code>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ study.modality }}</span>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ study.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        </td>
+                                        <td>
+                                            {% if study.processing_status == 'completed' %}
+                                                <span class="badge bg-success">
+                                                    <i data-feather="check" style="width: 12px; height: 12px;"></i>
+                                                    Completed
+                                                </span>
+                                            {% elif study.processing_status == 'processing' %}
+                                                <span class="badge bg-warning">
+                                                    <i data-feather="clock" style="width: 12px; height: 12px;"></i>
+                                                    Processing
+                                                </span>
+                                            {% elif study.processing_status == 'failed' %}
+                                                <span class="badge bg-danger">
+                                                    <i data-feather="x" style="width: 12px; height: 12px;"></i>
+                                                    Failed
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i data-feather="upload" style="width: 12px; height: 12px;"></i>
+                                                    Uploaded
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                {% if study.file_size %}
+                                                    {{ (study.file_size / 1024 / 1024) | round(1) }} MB
+                                                {% else %}
+                                                    Unknown
+                                                {% endif %}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('viewer', study_id=study.id) }}" class="btn btn-outline-primary btn-sm">
+                                                    <i data-feather="eye" style="width: 14px; height: 14px;"></i>
+                                                </a>
+                                                {% if study.processing_status == 'uploaded' %}
+                                                    <button class="btn btn-outline-success btn-sm" onclick="processStudy({{ study.id }})">
+                                                        <i data-feather="play" style="width: 14px; height: 14px;"></i>
+                                                    </button>
+                                                {% endif %}
+                                                <button class="btn btn-outline-info btn-sm" onclick="showStudyDetails({{ study.id }})">
+                                                    <i data-feather="info" style="width: 14px; height: 14px;"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i data-feather="folder" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                            <h5 class="text-muted mb-2">No Studies Yet</h5>
+                            <p class="text-muted mb-3">Upload your first medical image to get started with AI-powered analysis.</p>
+                            <a href="{{ url_for('upload_page') }}" class="btn btn-primary">
+                                <i data-feather="upload" class="me-2"></i>
+                                Upload First Image
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Study Details Modal -->
+<div class="modal fade" id="studyDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-feather="file-text" class="me-2"></i>
+                    Study Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="studyDetailsContent">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Status Modal -->
+<div class="modal fade" id="systemStatusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-feather="monitor" class="me-2"></i>
+                    System Status
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="systemStatusContent">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Dashboard functionality
+    function refreshDashboard() {
+        location.reload();
+    }
+
+    function processStudy(studyId) {
+        if (!confirm('Start processing this study? This may take several minutes.')) {
+            return;
+        }
+        
+        const btn = event.target.closest('button');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<div class="spinner-border spinner-border-sm me-1" role="status"></div>';
+        btn.disabled = true;
+        
+        fetch(`/api/process/${studyId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                analysis_request: 'Perform comprehensive segmentation analysis'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                MedicalApp.showToast('Processing started successfully', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                MedicalApp.showToast('Processing failed: ' + data.error, 'error');
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            MedicalApp.showToast('Network error: ' + error.message, 'error');
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        });
+    }
+
+    function showStudyDetails(studyId) {
+        const modal = new bootstrap.Modal(document.getElementById('studyDetailsModal'));
+        const content = document.getElementById('studyDetailsContent');
+        
+        // Show loading
+        content.innerHTML = `
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        modal.show();
+        
+        // Fetch study details
+        fetch(`/api/studies`)
+            .then(response => response.json())
+            .then(data => {
+                const study = data.studies.find(s => s.id === studyId);
+                if (study) {
+                    content.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-2">Basic Information</h6>
+                                <dl class="row">
+                                    <dt class="col-sm-4">Patient ID:</dt>
+                                    <dd class="col-sm-8">${study.patient_id}</dd>
+                                    <dt class="col-sm-4">Study ID:</dt>
+                                    <dd class="col-sm-8"><code>${study.study_id}</code></dd>
+                                    <dt class="col-sm-4">Modality:</dt>
+                                    <dd class="col-sm-8"><span class="badge bg-secondary">${study.modality}</span></dd>
+                                    <dt class="col-sm-4">Status:</dt>
+                                    <dd class="col-sm-8">
+                                        <span class="badge ${getStatusBadgeClass(study.processing_status)}">
+                                            ${study.processing_status}
+                                        </span>
+                                    </dd>
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-2">File Information</h6>
+                                <dl class="row">
+                                    <dt class="col-sm-4">File Size:</dt>
+                                    <dd class="col-sm-8">${MedicalApp.formatFileSize(study.file_size || 0)}</dd>
+                                    <dt class="col-sm-4">Created:</dt>
+                                    <dd class="col-sm-8">${MedicalApp.formatDate(study.created_at)}</dd>
+                                    <dt class="col-sm-4">Analyses:</dt>
+                                    <dd class="col-sm-8">${study.analysis_count || 0}</dd>
+                                </dl>
+                            </div>
+                        </div>
+                        ${study.description ? `
+                            <div class="mt-3">
+                                <h6 class="text-muted mb-2">Description</h6>
+                                <p class="mb-0">${study.description}</p>
+                            </div>
+                        ` : ''}
+                        <div class="mt-4 d-flex gap-2">
+                            <a href="/viewer/${study.id}" class="btn btn-primary">
+                                <i data-feather="eye" class="me-1"></i>
+                                Open Viewer
+                            </a>
+                            ${study.processing_status === 'uploaded' ? `
+                                <button class="btn btn-success" onclick="processStudy(${study.id}); bootstrap.Modal.getInstance(document.getElementById('studyDetailsModal')).hide();">
+                                    <i data-feather="play" class="me-1"></i>
+                                    Start Processing
+                                </button>
+                            ` : ''}
+                        </div>
+                    `;
+                    feather.replace();
+                } else {
+                    content.innerHTML = '<div class="alert alert-danger">Study not found</div>';
+                }
+            })
+            .catch(error => {
+                content.innerHTML = '<div class="alert alert-danger">Error loading study details</div>';
+            });
+    }
+
+    function getStatusBadgeClass(status) {
+        const classes = {
+            'completed': 'bg-success',
+            'processing': 'bg-warning',
+            'failed': 'bg-danger',
+            'uploaded': 'bg-secondary'
+        };
+        return classes[status] || 'bg-secondary';
+    }
+
+    function viewSystemStatus() {
+        const modal = new bootstrap.Modal(document.getElementById('systemStatusModal'));
+        const content = document.getElementById('systemStatusContent');
+        
+        // Show mock system status
+        content.innerHTML = `
+            <div class="list-group list-group-flush">
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i data-feather="server" class="text-success me-2"></i>
+                        Backend Service
+                    </div>
+                    <span class="badge bg-success">Online</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i data-feather="database" class="text-success me-2"></i>
+                        Database
+                    </div>
+                    <span class="badge bg-success">Connected</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i data-feather="cpu" class="text-warning me-2"></i>
+                        TotalSegmentator
+                    </div>
+                    <span class="badge bg-warning">Mock Mode</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i data-feather="activity" class="text-info me-2"></i>
+                        Gemini API
+                    </div>
+                    <span class="badge bg-info">Available</span>
+                </div>
+            </div>
+        `;
+        
+        feather.replace();
+        modal.show();
+    }
+
+    function cleanupFiles() {
+        if (!confirm('Clean up old processed files? This will remove files older than 7 days.')) {
+            return;
+        }
+        
+        fetch('/api/cleanup', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                MedicalApp.showToast('Cleanup completed successfully', 'success');
+            } else {
+                MedicalApp.showToast('Cleanup failed: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            MedicalApp.showToast('Network error: ' + error.message, 'error');
+        });
+    }
+
+    function loadAllStudies() {
+        // For now, just refresh the page
+        // In a full implementation, this would load more studies via AJAX
+        location.reload();
+    }
+
+    // Auto-refresh processing studies every 30 seconds
+    setInterval(() => {
+        const processingRows = document.querySelectorAll('tr:has(.badge.bg-warning)');
+        if (processingRows.length > 0) {
+            location.reload();
+        }
+    }, 30000);
+</script>
+{% endblock %}

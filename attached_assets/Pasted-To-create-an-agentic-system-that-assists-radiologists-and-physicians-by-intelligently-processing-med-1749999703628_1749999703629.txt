@@ -1,0 +1,90 @@
+To create an agentic system that assists radiologists and physicians by intelligently processing medical images (DICOM/NIFTI), leveraging LLMs (Gemini, MedGemma), segmentation tools (TotalSegmentator), and medical AI models (MONAI), with seamless integration into clinical workflows (PACS/DICOMweb) and an intuitive web-based frontend (Cornerstone.js).
+Core Principles:
+Modularity: Design agents with specific, well-defined responsibilities.
+Iterative Development (MVP Approach): Start with core functionality and progressively add features.
+Local-First Potential (for some components): While relying on APIs like Gemini, aim for local processing where feasible for privacy and control (e.g., image processing).
+Clinical Relevance: Focus on tasks that provide tangible benefits to medical professionals.
+Security & Compliance: Prioritize data security and adherence to medical data regulations (HIPAA, GDPR, etc.) from the outset.
+User-Centric Design: Ensure the frontend is intuitive and useful for clinicians.
+Phased Development Plan:
+Phase 0: Foundation & Setup
+Objective: Establish the development environment, select core frameworks, and perform deep dives into key technologies.
+Tasks:
+Set up Python environment (e.g., 3.10+ with venv or Conda).
+Install core libraries: Pydicom, NiBabel, SimpleITK, OpenCV, NumPy.
+Set up accounts/API keys for Google Gemini.
+Install TotalSegmentator and test it on sample data.
+Explore MONAI and download a few relevant pre-trained models.
+Basic Cornerstone.js setup (HTML, JS) to display and render a sample Nifti,  DICOM and images.
+Research and select a backend web framework (Flask or FastAPI recommended for simplicity and performance).
+Research Model Context Protocol (MCP) server setup and client interaction.
+Define initial data flow and agent responsibilities on paper.
+Outline security and compliance strategy.
+
+
+Phase 1: MVP - Local Image Processing & Basic Display
+Objective: Create a basic system that can take a DICOM/NIFTI file, perform segmentation, and display the original image and segmentation overlay in a web UI.
+Core Components:
+Data Handling Agent (Backend): Loads DICOM/NIFTI, converts formats if necessary.
+Imaging Analysis Agent (Backend): Runs TotalSegmentator.
+Basic Web UI (Frontend): Uses Cornerstone.js to display images and overlays served by the backend.
+Simple API (Backend): Endpoints to upload images, trigger processing, and retrieve results for display.
+
+
+Key Technologies: Python, Flask/FastAPI, Pydicom, NiBabel, TotalSegmentator (subprocess call), Cornerstone.js.
+Milestone: User can upload a CT scan, see the raw scan, and see the TotalSegmentator output overlaid in a browser.
+Phase 2: MVP - LLM Orchestration & Basic Interpretation
+Objective: Integrate an LLM (Gemini 2.5) as the orchestrator to understand simple natural language requests and coordinate the actions of the Phase 1 agents.
+Core Components:
+Orchestrator Agent (Backend):
+Takes user text input.
+Uses Gemini API to interpret intent and extract parameters (e.g., "Segment the liver in this scan").
+Optionally, routes requests through an MCP server.
+Calls the appropriate backend agents (Data Handling, Imaging Analysis).
+
+
+Enhanced API & UI: Allow text input for commands. Display LLM-generated text (e.g., "Segmentation complete for liver").
+
+
+Key Technologies: Gemini API, (Optional) Model Context Protocol server/client, updated backend logic.
+Milestone: User can type "Segment kidneys in the uploaded CT," and the system performs the segmentation and confirms.
+Phase 3: Advanced Analysis & Multimodal Capabilities
+Objective: Integrate more advanced AI models (MONAI, MedGemma) and enable richer interaction.
+Core Components:
+Imaging Analysis Agent (Enhanced):
+Integrate MONAI models for tasks beyond TotalSegmentator (e.g., specific lesion detection).
+
+
+Multimodal Understanding Agent (Backend):
+Integrate MedGemma (or similar) to answer questions about images or generate descriptive text.
+
+
+Report Generation (Basic): Orchestrator uses LLM/MedGemma to draft simple textual summaries of findings.
+
+
+Key Technologies: MONAI, MedGemma API/integration, updated Orchestrator logic.
+Milestone: User can ask, "Analyze this scan for liver lesions and provide a summary." The system runs segmentation, a MONAI lesion model, and MedGemma provides a textual summary.
+Phase 4: PACS Integration & Workflow Enhancement
+Objective: Enable the system to retrieve data from and send results back to a PACS, making it usable in a clinical setting.
+Core Components:
+Data Handling Agent (Enhanced - PACS Client):
+Implement QIDO-RS/WADO-RS (or pynetdicom for C-FIND/C-MOVE) to retrieve studies from PACS.
+Implement STOW-RS (or pynetdicom for C-STORE) to send DICOM SEG/SR objects back to PACS.
+
+
+DICOM Object Creation: Logic to create DICOM SEG (segmentation) objects from TotalSegmentator/MONAI outputs and basic DICOM SR (structured reports) from LLM-generated text.
+
+
+Key Technologies: DICOMweb client libraries (e.g., requests for RESTful calls) or pynetdicom, dcmqi or highdicom for creating DICOM SEG/SR.
+Milestone: System can query a PACS for a patient study, retrieve it, analyze it, and store segmentation results and a summary report back to the PACS.
+Phase 5: Deployment, Testing, & Iteration
+Objective: Package the application, deploy it, conduct thorough testing (including with medical professionals if possible), and gather feedback for further refinement.
+Tasks:
+Containerization (Docker).
+Deployment strategy (cloud server, on-premise).
+Robust logging and monitoring.
+Comprehensive unit and integration testing.
+User Acceptance Testing (UAT) with target users.
+Performance optimization.
+Security audits and hardening.
+Documentation for users and developers.

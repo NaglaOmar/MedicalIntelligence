@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Medical Images - Medical Imaging Analysis System{% endblock %}
+
+{% block extra_head %}
+<style>
+    .upload-zone {
+        border: 2px dashed var(--bs-border-color);
+        border-radius: 0.5rem;
+        padding: 3rem 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        background: var(--bs-body-bg);
+    }
+    
+    .upload-zone:hover,
+    .upload-zone.dragover {
+        border-color: var(--bs-primary);
+        background: var(--bs-primary-bg-subtle);
+        transform: translateY(-2px);
+    }
+    
+    .upload-zone.dragover {
+        border-style: solid;
+    }
+    
+    .file-preview {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .progress-container {
+        min-height: 20px;
+    }
+    
+    .file-item {
+        transition: all 0.3s ease;
+    }
+    
+    .file-item:hover {
+        background: var(--bs-secondary-bg);
+    }
+    
+    .format-badge {
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-6 mb-1">Upload Medical Images</h1>
+                    <p class="text-muted">Upload DICOM (.dcm) or NIFTI (.nii, .nii.gz) files for AI-powered analysis</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                        <i data-feather="arrow-left" class="me-2"></i>
+                        Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="upload-cloud" class="me-2"></i>
+                        File Upload
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Upload Zone -->
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="mb-3">
+                            <i data-feather="upload-cloud" style="width: 48px; height: 48px;" class="text-muted mb-3"></i>
+                        </div>
+                        <h5 class="mb-2">Drop medical images here</h5>
+                        <p class="text-muted mb-3">or click to browse and select files</p>
+                        <input type="file" id="fileInput" class="d-none" multiple accept=".dcm,.nii,.nii.gz">
+                        <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                            <i data-feather="folder" class="me-2"></i>
+                            Choose Files
+                        </button>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i data-feather="info" class="me-1" style="width: 14px; height: 14px;"></i>
+                                Supported formats: DICOM (.dcm), NIFTI (.nii, .nii.gz) • Max size: 500MB per file
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- File Preview -->
+                    <div class="mt-4 d-none" id="filePreviewSection">
+                        <h6 class="mb-3">
+                            <i data-feather="file" class="me-2"></i>
+                            Selected Files (<span id="fileCount">0</span>)
+                        </h6>
+                        <div class="file-preview border rounded" id="filePreview">
+                            <!-- Files will be listed here -->
+                        </div>
+                    </div>
+
+                    <!-- Patient Information Form -->
+                    <div class="mt-4 d-none" id="patientInfoSection">
+                        <h6 class="mb-3">
+                            <i data-feather="user" class="me-2"></i>
+                            Patient Information
+                        </h6>
+                        <form id="uploadForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="patientId" class="form-label">Patient ID <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="patientId" name="patient_id" required
+                                           placeholder="Enter patient identifier">
+                                    <div class="form-text">Unique identifier for the patient</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="studyId" class="form-label">Study ID</label>
+                                    <input type="text" class="form-control" id="studyId" name="study_id"
+                                           placeholder="Auto-generated if empty">
+                                    <div class="form-text">Study identifier (optional)</div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" id="description" name="description" rows="3"
+                                          placeholder="Brief description of the study or findings..."></textarea>
+                                <div class="form-text">Optional description of the medical study</div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Upload Progress -->
+                    <div class="mt-4 d-none" id="uploadProgressSection">
+                        <h6 class="mb-3">
+                            <i data-feather="activity" class="me-2"></i>
+                            Upload Progress
+                        </h6>
+                        <div id="uploadProgress">
+                            <!-- Progress bars will be added here -->
+                        </div>
+                    </div>
+
+                    <!-- Upload Actions -->
+                    <div class="mt-4 d-none" id="uploadActionsSection">
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-success" id="uploadButton" onclick="startUpload()">
+                                <i data-feather="upload" class="me-2"></i>
+                                Upload Files
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearFiles()">
+                                <i data-feather="x" class="me-2"></i>
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Information Panel -->
+        <div class="col-lg-4">
+            <!-- Supported Formats -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="file-text" class="me-2"></i>
+                        Supported Formats
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item px-0 py-2">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-primary me-2 format-badge">DICOM</span>
+                                <div>
+                                    <div class="fw-medium">.dcm files</div>
+                                    <small class="text-muted">Digital Imaging and Communications in Medicine</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="list-group-item px-0 py-2">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-info me-2 format-badge">NIFTI</span>
+                                <div>
+                                    <div class="fw-medium">.nii, .nii.gz files</div>
+                                    <small class="text-muted">Neuroimaging Informatics Technology Initiative</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Guidelines -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="shield" class="me-2"></i>
+                        Security & Compliance
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="small">
+                        <div class="d-flex align-items-start mb-2">
+                            <i data-feather="check" class="text-success me-2 mt-1" style="width: 14px; height: 14px;"></i>
+                            <span>HIPAA compliant secure upload</span>
+                        </div>
+                        <div class="d-flex align-items-start mb-2">
+                            <i data-feather="check" class="text-success me-2 mt-1" style="width: 14px; height: 14px;"></i>
+                            <span>Data encrypted in transit and at rest</span>
+                        </div>
+                        <div class="d-flex align-items-start mb-2">
+                            <i data-feather="check" class="text-success me-2 mt-1" style="width: 14px; height: 14px;"></i>
+                            <span>Automatic PHI de-identification</span>
+                        </div>
+                        <div class="d-flex align-items-start">
+                            <i data-feather="check" class="text-success me-2 mt-1" style="width: 14px; height: 14px;"></i>
+                            <span>Audit logging for all access</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing Info -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="cpu" class="me-2"></i>
+                        AI Processing
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="small">
+                        <p class="mb-2">After upload, your images will be processed using:</p>
+                        <div class="d-flex align-items-start mb-2">
+                            <i data-feather="layers" class="text-info me-2 mt-1" style="width: 14px; height: 14px;"></i>
+                            <span><strong>TotalSegmentator</strong> for organ segmentation</span>
+                        </div>
+                        <div class="d-flex align-items-start mb-2">
+                            <i data-feather="activity" class="text-warning me-2 mt-1" style="width: 14px; height: 14px;"></i>
+                            <span><strong>Gemini AI</strong> for intelligent analysis</span>
+                        </div>
+                        <div class="d-flex align-items-start">
+                            <i data-feather="activity" class="text-success me-2 mt-1" style="width: 14px; height: 14px;"></i>
+                            <span><strong>MONAI</strong> for advanced medical AI</span>
+                        </div>
+                        <div class="mt-3 p-2 bg-info bg-opacity-10 rounded">
+                            <small class="text-info">
+                                <i data-feather="clock" class="me-1" style="width: 12px; height: 12px;"></i>
+                                Processing typically takes 2-10 minutes depending on image size and complexity
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Success Modal -->
+<div class="modal fade" id="uploadSuccessModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-feather="check-circle" class="text-success me-2"></i>
+                    Upload Successful
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center">
+                    <i data-feather="upload-cloud" class="text-success mb-3" style="width: 48px; height: 48px;"></i>
+                    <h6>Files Uploaded Successfully</h6>
+                    <p class="text-muted mb-3">Your medical images have been uploaded and are ready for analysis.</p>
+                    <div id="uploadedStudies">
+                        <!-- Uploaded studies will be listed here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i data-feather="eye" class="me-1"></i>
+                    View Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/upload-handler.js') }}"></script>
+
+<script>
+    // Initialize upload functionality when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeUploadZone();
+        setupFileHandlers();
+    });
+</script>
+{% endblock %}
